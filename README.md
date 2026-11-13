@@ -1,7 +1,5 @@
 # ViTab-Adapter
 
-Anonymous review repository for **ViTab-Adapter: Lightweight Visual Adaptation for Tabular Foundation Models**.
-
 ## 1. Introduction
 
 ViTab-Adapter is a lightweight method for prediction tasks that combine images and structured data. It converts features from a frozen vision encoder into a small set of **visual pseudo-columns** and appends them to the original table. A frozen tabular foundation model makes predictions from the augmented table, while training updates only the visual adapter.
