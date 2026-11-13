@@ -1,114 +1,111 @@
 # ViTab-Adapter
 
-Anonymous review repository for **ViTab-Adapter: Lightweight Visual Adaptation
-for Tabular Foundation Models**. ViTab-Adapter maps frozen visual features to
-a small set of pseudo-columns and appends them to the original table for
-prediction with a frozen tabular foundation model.
+Anonymous review repository for **ViTab-Adapter: Lightweight Visual Adaptation for Tabular Foundation Models**.
 
-## Overview
+## 1. Introduction
+
+ViTab-Adapter is a lightweight method for prediction tasks that combine images and structured data. It converts features from a frozen vision encoder into a small set of **visual pseudo-columns** and appends them to the original table. A frozen tabular foundation model makes predictions from the augmented table, while training updates only the visual adapter.
+
+This repository provides data preparation, training, and evaluation commands for 14 classification and regression datasets from VT-Bench and MulTaBench. The default configuration uses CLIP ViT-L/14 and TabICLv2.
+
+## 2. Overview
+
+A single global image vector can miss localized details, while passing all patch tokens into the predictor makes the input much larger. ViTab-Adapter combines global and local information before converting it to a compact tabular representation.
+
+1. **Multi-layer fusion.** The adapter pools patch grids from CLIP layers 6, 12, 18, and 24, then combines corresponding positions using learned layer weights.
+2. **Spatial aggregation and CLS fusion.** A scoring network weights spatial positions to form a local representation. The adapter combines it with the final-layer CLS representation using learned weights.
+3. **Pseudo-column generation.** An MLP maps the fused vector to K scalar features. The adapter standardizes them using training-context statistics and appends them to the original columns for prediction.
 
 ![ViTab-Adapter architecture, multi-layer fusion, and spatial aggregation](assets/overview.png)
 
-## Quickstart
+## 3. Quickstart
 
-### 1. Download
+### 3.1 Download
 
-Download the source from **Code → Download ZIP** and extract it. Run the commands below from the extracted repository root.
+On GitHub, select **Code → Download ZIP** and extract the archive. Run the following commands from the extracted repository root.
 
-### 2. Set up the environment
+### 3.2 Set up the environment
 
-Use Python 3.11 and a CUDA-enabled PyTorch installation.
+Use Python 3.11 with CUDA-enabled PyTorch. Install the CUDA 12.4 builds of PyTorch 2.5.1 and torchvision 0.20.1, then run:
 
-Install the CUDA 12.4 builds of PyTorch 2.5.1 and torchvision 0.20.1, then run
-`python -m pip install -r requirements.txt`. Provide a local Hugging Face
-snapshot of `openai/clip-vit-large-patch14` and the task-appropriate checkpoint
-from `jingang/TabICL`: `tabicl-classifier-v2-20260212.ckpt` or
-`tabicl-regressor-v2-20260212.ckpt`. Keep the model snapshots unchanged across runs.
+```bash
+python -m pip install -r requirements.txt
+```
 
-### 3. Prepare the data
+Prepare a local snapshot of `openai/clip-vit-large-patch14` and the TabICLv2 checkpoint for your task:
 
-Obtain the datasets from their official sources and follow the applicable
-access terms. For VT-Bench, supply the benchmark's preprocessed feature
-exports at `DATA_BASE/vt/<legacy_name>/features`. For MulTaBench, supply the
-downloaded dataset exports at `DATA_BASE/multabench/_downloads/<slug>`, with
-`data.csv`, `metadata.json` and the referenced images. The metadata identifies
-the image and target columns via `image_col` and `target`. Supported dataset
-IDs and slugs are listed in the preparation script and registry.
+- **Classification** — `tabicl-classifier-v2-20260212.ckpt`
+- **Regression** — `tabicl-regressor-v2-20260212.ckpt`
 
-```sh
+Use the same model snapshots across runs.
+
+### 3.3 Prepare the data
+
+Obtain the datasets from their official sources and follow their access and usage terms.
+
+| Benchmark | Expected location | Required files |
+| --- | --- | --- |
+| VT-Bench | `DATA_BASE/vt/<legacy_name>/features` | Preprocessed benchmark features |
+| MulTaBench | `DATA_BASE/multabench/_downloads/<slug>` | `data.csv`, `metadata.json`, and the referenced images |
+
+In the MulTaBench metadata, `image_col` identifies the image column and `target` identifies the prediction target. See the [dataset registry](mmpfn/benchmarking/registry.py) and [preparation script](vitab_adapter/prepare.py) for supported dataset IDs and slugs.
+
+```bash
 python -m vitab_adapter.prepare --data-base DATA_BASE --output prepared
 ```
 
-The preparation command also accepts repeated `--dataset` flags. It copies
-the existing VT-Bench split and uses the TabSTAR 1.1.15 split implementation
-for the aligned MulTaBench folds. All three seeds use VT-Bench fold 0.
-For MulTaBench, seeds 42, 43 and 44 use folds 0, 1 and 2, respectively. For exact reproduction, supply
-the same source dataset snapshots and filtering used by the experiments.
+Pass `--dataset` multiple times to prepare a subset of datasets.
 
-The runner consumes `prepared/<dataset>/fold_<n>/metadata.json` and
-`train.npz`, `val.npz`, `test.npz`. Each NPZ contains `x`, `y` and
-`image_paths` in matching row order. Relative paths are resolved against
-`image_base_dir` in metadata. Prepared files may reference local licensed
-images and should stay outside the review repository.
+### 3.4 Train and evaluate
 
-### 4. Train and evaluate
-
-```sh
+```bash
 python -m vitab_adapter run --dataset vt_skin_cancer --seed 42 --prepared prepared --output runs --clip-model weights/clip --tabicl-checkpoint weights/tabicl-classifier-v2-20260212.ckpt
 python -m vitab_adapter summarize --output runs --csv summary.csv
 ```
 
-- **Seeds** · Run 42, 43, and 44.
-- **Model selection** · Sweep K = 4, 8, 16, 32, 64, 128. Select by validation accuracy or RMSE, breaking ties toward smaller K. Test the selected checkpoint.
-- **Reporting** · Aggregate test scores as mean ± sample standard deviation over three seeds.
-- **Training** · 50 epochs maximum, patience 15, and 2,500 rows per training block. Train/validation/test ensemble sizes are 2/2/8.
-- **Reruns** · Completed candidates and frozen features are reused. Use a new output directory if images or weights change in place.
+- **Seeds** — Run 42, 43, and 44.
+- **Model selection** — Sweep K = 4, 8, 16, 32, 64, and 128. Select by validation accuracy for classification or validation RMSE for regression. Break ties in favor of the smaller K and evaluate the selected checkpoint on the test split.
+- **Reporting** — Report test mean ± sample standard deviation across the three seeds.
+- **Training** — Use up to 50 epochs, early stopping patience of 15, and up to 2,500 rows per training block. Ensemble sizes are 2 for training, 2 for validation, and 8 for testing.
+- **Reruns** — Completed candidates and frozen features are reused. Use a new output directory if images or model weights change in place.
 
-## Ablations and encoder replacements
+## 4. Ablations and vision encoder replacements
 
-Add the following options to the training command above. Use the same
-prepared split and TabICLv2 checkpoint for the comparisons.
+Add the relevant options to the training command above. Use the same data split and TabICLv2 checkpoint for each comparison.
 
 | Setting | Options | Protocol |
 | --- | --- | --- |
-| 64 patches (default) | `--variant E3` (default) | Standard configuration with 64 patches per layer. |
-| 1 or 16 patches | `--variant E1` or `--variant E2` | Pool the projected 8×8 patch grid to 1 or 16 tokens per layer. |
-| 256 patches | `--variant E4` | Use the original 256 patches per layer. Add `--train-block 1250` for the smaller-block runs. |
-| DINOv2 | `--vision dinov2 --clip-model weights/dinov2` | Use the local snapshot of `facebook/dinov2-large`. |
-| OpenCLIP | `--vision openclip --clip-model weights/openclip` | Use the local Transformers snapshot of `laion/CLIP-ViT-L-14-laion2B-s32B-b82K`. |
-| Test-time modality ablation | `--modality-ablation` | Reuse the selected standard CLIP + TabICLv2 checkpoint. Replace the corresponding input columns with per-estimator training-context means before TabICLv2, preserving feature order and width. |
+| 64 patches per layer (default) | `--variant E3` | Use the standard patch count. |
+| 1 or 16 patches per layer | `--variant E1` or `--variant E2` | Pool the projected 8×8 patch grid to 1 or 16 tokens per layer. |
+| 256 patches per layer | `--variant E4` | Use all 256 patches. Add `--train-block 1250` for the smaller-block runs. |
+| DINOv2 | `--vision dinov2 --clip-model weights/dinov2` | Use a local snapshot of `facebook/dinov2-large`. |
+| OpenCLIP | `--vision openclip --clip-model weights/openclip` | Use a local Transformers snapshot of `laion/CLIP-ViT-L-14-laion2B-s32B-b82K`. |
+| Test-time modality ablation | `--modality-ablation` | Reuse the selected CLIP + TabICLv2 checkpoint. Replace the corresponding input columns with each estimator's training-context means before TabICLv2, preserving column order and width. |
 
-The standard run writes into `runs`. Other configurations write into
-`runs/<variant-or-encoder>`. Summarize each configuration using its own
-output root. For modality ablation, run
-`python -m vitab_adapter summarize --output runs --kind modality --csv modality.csv`.
+The standard configuration writes to `runs`. Other patch counts and vision encoders write to `runs/<variant-or-encoder>`.
 
-## Tabular backend replacements
+## 5. Tabular backend replacements
 
-Install the compatible optional backend in its own environment with the
-base requirements. For TabPFN use the v3.5-capable TabPFN 8.2.0 runtime and
-the v3.5 checkpoint. For TabFM install the official Google Research TabFM
-PyTorch source exposing `tabfm.src.pytorch.tabfm_v1_0_0.load` and use the
-local TabFM v1.0.0 checkpoint directory containing its config and weights.
+Install each optional backend in a separate Python environment with the base dependencies.
 
-```sh
+- **TabPFN v3.5** — Use TabPFN 8.2.0 and the v3.5 checkpoint.
+- **TabFM** — Install the Google Research PyTorch source exposing `tabfm.src.pytorch.tabfm_v1_0_0.load`. Use a local TabFM v1.0.0 checkpoint directory containing the model configuration and weights.
+
+```bash
 python -m vitab_adapter run --dataset vt_skin_cancer --seed 42 --prepared prepared --output runs --clip-model weights/clip --backend tabpfn35 --backend-weights weights/tabpfn-v3.5-20260909.safetensors
 python -m vitab_adapter run --dataset vt_skin_cancer --seed 42 --prepared prepared --output runs --clip-model weights/clip --backend tabfm --backend-weights weights/tabfm
-python -m vitab_adapter summarize --output runs/tabfm --csv tabfm.csv
 ```
 
-The replacement workflow preserves the backend-specific experimental
-settings. TabPFN v3.5 uses 2,500 rows per training block and 512 query rows
-per evaluation chunk. TabFM uses 1,250 rows per training block, 64 query
-rows per evaluation chunk, and activation checkpointing for its attention
-blocks. Both freeze the predictor, select K on validation, and evaluate
-the selected multimodal adapter alongside a paired table-only prediction
-on the same test split. The summary includes the paired gain, defined as
-multimodal minus table-only ACC or table-only minus multimodal RMSE.
+| Backend | Rows per training block | Query rows per evaluation chunk |
+| --- | ---: | ---: |
+| TabPFN v3.5 | 2,500 | 512 |
+| TabFM | 1,250 | 64 |
 
-## Results
+TabFM uses activation checkpointing for attention blocks.
 
-ViTab-Adapter with CLIP and TabICLv2 on the 14 datasets in the aligned three-seed evaluation. Values are test mean ± sample standard deviation.
+## 6. Results
+
+ViTab-Adapter with CLIP and TabICLv2 was evaluated on 14 datasets using aligned splits. Scores are test mean ± sample standard deviation over seeds 42, 43, and 44.
 
 ### Classification · Accuracy (%) ↑
 
@@ -134,18 +131,8 @@ ViTab-Adapter with CLIP and TabICLv2 on the 14 datasets in the aligned three-see
 | MkPhoto Bots | 0.0918 ± 0.0035 |
 | Anime | 0.4213 ± 0.0048 |
 
-## Outputs and data access
+## 7. Third-party code and attribution
 
-The run directory contains per-candidate validation metrics, selected test
-metrics, and local feature caches and checkpoints. Download datasets and model
-weights from their upstream providers under their access terms. The review
-repository includes source code, documentation, and aggregate scores. Keep dataset files,
-checkpoints, caches, logs, and credentials outside Git.
-
-## Third-party code and attribution
-
-The benchmark loading and preprocessing helpers under `mmpfn` are
-adapted from MultiModalPFN. The accompanying third-party license is
-included in [LICENSE-MultiModalPFN](LICENSE-MultiModalPFN).
+The benchmark loading and preprocessing helpers under `mmpfn` are adapted from MultiModalPFN. See [LICENSE-MultiModalPFN](LICENSE-MultiModalPFN).
 
 Built with PriorLabs-TabPFN (attribution for the reused benchmark helpers).
