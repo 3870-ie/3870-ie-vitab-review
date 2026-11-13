@@ -5,30 +5,19 @@ for Tabular Foundation Models**. ViTab-Adapter maps frozen visual features to
 a small set of pseudo-columns and appends them to the original table for
 prediction with a frozen tabular foundation model.
 
-## What is included
+## Overview
 
-- Dataset preparation for the VT-Bench and MulTaBench image–table experiments.
-- Training with frozen CLIP ViT-L/14 and TabICLv2, validation-based selection
-  of the pseudo-column count, and test evaluation of the selected checkpoint.
-- Patch-count sensitivity, test-time modality ablation, and visual encoder
-  and tabular backend comparisons.
-- Per-seed metrics and CSV summaries across three seeds.
+![ViTab-Adapter architecture, multi-layer fusion, and spatial aggregation](assets/overview.png)
 
-## Repository layout
+## Quickstart
 
-| Path | Purpose |
-| --- | --- |
-| `vitab_adapter/__main__.py` | Experiment and summary commands |
-| `vitab_adapter/prepare.py` | Benchmark split preparation |
-| `vitab_adapter/training.py` | Visual adapter and TabICLv2 training and evaluation |
-| `vitab_adapter/vision.py` | Alternative vision encoders |
-| `vitab_adapter/backends.py`, `vitab_adapter/replacement.py` | Frozen tabular backend comparisons |
-| `mmpfn/` | Reused benchmark data and preprocessing helpers |
+### 1. Download
 
-## Installation
+Download the source from **Code → Download ZIP** and extract it. Run the commands below from the extracted repository root.
 
-Run the commands from the repository root with Python 3.11 and a CUDA-enabled
-PyTorch environment.
+### 2. Set up the environment
+
+Use Python 3.11 and a CUDA-enabled PyTorch installation.
 
 Install the CUDA 12.4 builds of PyTorch 2.5.1 and torchvision 0.20.1, then run
 `python -m pip install -r requirements.txt`. Provide a local Hugging Face
@@ -36,7 +25,7 @@ snapshot of `openai/clip-vit-large-patch14` and the task-appropriate checkpoint
 from `jingang/TabICL`: `tabicl-classifier-v2-20260212.ckpt` or
 `tabicl-regressor-v2-20260212.ckpt`. Keep the model snapshots unchanged across runs.
 
-## Prepare data
+### 3. Prepare the data
 
 Obtain the datasets from their official sources and follow the applicable
 access terms. For VT-Bench, supply the benchmark's preprocessed feature
@@ -62,47 +51,29 @@ The runner consumes `prepared/<dataset>/fold_<n>/metadata.json` and
 `image_base_dir` in metadata. Prepared files may reference local licensed
 images and should stay outside the review repository.
 
-## Quick start
+### 4. Train and evaluate
 
 ```sh
 python -m vitab_adapter run --dataset vt_skin_cancer --seed 42 --prepared prepared --output runs --clip-model weights/clip --tabicl-checkpoint weights/tabicl-classifier-v2-20260212.ckpt
 python -m vitab_adapter summarize --output runs --csv summary.csv
 ```
 
-Repeat the training command for seeds 43 and 44. The runner trains six
-candidates (K = 4, 8, 16, 32, 64, 128) and uses validation accuracy
-(classification) or RMSE (regression) to select K. Ties select the smaller K.
-Only the selected checkpoint is evaluated on the test split. The CSV reports
-means and sample standard deviations for metrics with all three seeds
-available. Accuracy is expressed as a percentage and AUROC and macro-F1
-are expressed as fractions.
-
-Patch features come from CLIP blocks 6, 12, 18 and 24. A 2×2 average pool
-retains 64 spatial positions per layer, and the global CLS feature comes from
-block 24. Spatial attention uses hidden width 128. The pseudo-column MLP
-uses hidden width 512 and dropout 0.1. AdamW uses learning rates 0.01 for
-the fusion logits and 0.001 for the rest of the adapter, weight decay
-0.0001, cosine decay with 10% warmup and a gradient norm cap of 1.
-Training uses up to 50 epochs, patience 15, at most 2,500 rows per
-training block and query fraction 0.2. The train/validation/test ensemble
-sizes are 2/2/8.
-
-Run only one process per dataset/seed/output combination. Completed
-candidates are reused on rerun. CLIP feature caches are shared across
-seeds that use the same prepared split, and are keyed by the prepared
-split files and CLIP snapshot path. Use a new output root if source
-images or weights change in place.
+- **Seeds** · Run 42, 43, and 44.
+- **Model selection** · Sweep K = 4, 8, 16, 32, 64, 128. Select by validation accuracy or RMSE, breaking ties toward smaller K. Test the selected checkpoint.
+- **Reporting** · Aggregate test scores as mean ± sample standard deviation over three seeds.
+- **Training** · 50 epochs maximum, patience 15, and 2,500 rows per training block. Train/validation/test ensemble sizes are 2/2/8.
+- **Reruns** · Completed candidates and frozen features are reused. Use a new output directory if images or weights change in place.
 
 ## Ablations and encoder replacements
 
 Add the following options to the training command above. Use the same
 prepared split and TabICLv2 checkpoint for the comparisons.
 
-| Experiment | Options | Protocol |
+| Setting | Options | Protocol |
 | --- | --- | --- |
-| E3 | `--variant E3` (default) | Standard configuration with 64 patches per layer. |
-| E1 / E2 | `--variant E1` or `--variant E2` | Pool the projected 8×8 patch grid to 1 or 16 tokens per layer. |
-| E4 | `--variant E4` | Use the original 256 patches per layer. Add `--train-block 1250` for the smaller-block runs. |
+| 64 patches (default) | `--variant E3` (default) | Standard configuration with 64 patches per layer. |
+| 1 or 16 patches | `--variant E1` or `--variant E2` | Pool the projected 8×8 patch grid to 1 or 16 tokens per layer. |
+| 256 patches | `--variant E4` | Use the original 256 patches per layer. Add `--train-block 1250` for the smaller-block runs. |
 | DINOv2 | `--vision dinov2 --clip-model weights/dinov2` | Use the local snapshot of `facebook/dinov2-large`. |
 | OpenCLIP | `--vision openclip --clip-model weights/openclip` | Use the local Transformers snapshot of `laion/CLIP-ViT-L-14-laion2B-s32B-b82K`. |
 | Test-time modality ablation | `--modality-ablation` | Reuse the selected standard CLIP + TabICLv2 checkpoint. Replace the corresponding input columns with per-estimator training-context means before TabICLv2, preserving feature order and width. |
@@ -135,12 +106,40 @@ the selected multimodal adapter alongside a paired table-only prediction
 on the same test split. The summary includes the paired gain, defined as
 multimodal minus table-only ACC or table-only minus multimodal RMSE.
 
+## Results
+
+ViTab-Adapter with CLIP and TabICLv2 on the 14 datasets in the aligned three-seed evaluation. Values are test mean ± sample standard deviation.
+
+### Classification · Accuracy (%) ↑
+
+| Dataset | ViTab-Adapter |
+| --- | ---: |
+| Skin Cancer | 86.96 ± 0.00 |
+| Breast Cancer | 53.95 ± 1.79 |
+| Infarction | 71.44 ± 0.31 |
+| Mammography CMMD | 80.72 ± 1.77 |
+| Hateful Meme | 76.20 ± 1.85 |
+| Justin Instagram | 95.92 ± 1.09 |
+| Glaucoma SMDG | 89.09 ± 0.68 |
+| Adoption | 47.04 ± 0.75 |
+| CheXpert | 70.32 ± 0.62 |
+
+### Regression · RMSE ↓
+
+| Dataset | ViTab-Adapter |
+| --- | ---: |
+| Mango Mass | 0.0344 ± 0.0020 |
+| Amazon Bestseller | 0.5721 ± 0.0091 |
+| Pawpularity | 17.2254 ± 0.0236 |
+| MkPhoto Bots | 0.0918 ± 0.0035 |
+| Anime | 0.4213 ± 0.0048 |
+
 ## Outputs and data access
 
 The run directory contains per-candidate validation metrics, selected test
 metrics, and local feature caches and checkpoints. Download datasets and model
 weights from their upstream providers under their access terms. The review
-repository contains source code and documentation. Keep dataset files,
+repository includes source code, documentation, and aggregate scores. Keep dataset files,
 checkpoints, caches, logs, and credentials outside Git.
 
 ## Third-party code and attribution
