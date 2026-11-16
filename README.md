@@ -14,7 +14,7 @@ A single global image vector can miss localized details, while passing all patch
 2. **Spatial aggregation and CLS fusion.** A scoring network weights spatial positions to form a local representation. The adapter combines it with the final-layer CLS representation using learned weights.
 3. **Pseudo-column generation.** An MLP maps the fused vector to K scalar features. The adapter standardizes them using training-context statistics and appends them to the original columns for prediction.
 
-![ViTab-Adapter architecture, multi-layer fusion, and spatial aggregation](assets/overview.pdf)
+![ViTab-Adapter architecture, multi-layer fusion, and spatial aggregation](assets/overview.png)
 
 ## 3. Quickstart
 
