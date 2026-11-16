@@ -105,29 +105,7 @@ TabFM uses activation checkpointing for attention blocks.
 
 ViTab-Adapter with CLIP and TabICLv2 was evaluated on 14 datasets using aligned splits. Scores are test mean ± sample standard deviation over seeds 42, 43, and 44.
 
-### Classification · Accuracy (%) ↑
-
-| Dataset | ViTab-Adapter |
-| --- | ---: |
-| Skin Cancer | 86.96 ± 0.00 |
-| Breast Cancer | 53.95 ± 1.79 |
-| Infarction | 71.44 ± 0.31 |
-| Mammography CMMD | 80.72 ± 1.77 |
-| Hateful Meme | 76.20 ± 1.85 |
-| Justin Instagram | 95.92 ± 1.09 |
-| Glaucoma SMDG | 89.09 ± 0.68 |
-| Adoption | 47.04 ± 0.75 |
-| CheXpert | 70.32 ± 0.62 |
-
-### Regression · RMSE ↓
-
-| Dataset | ViTab-Adapter |
-| --- | ---: |
-| Mango Mass | 0.0344 ± 0.0020 |
-| Amazon Bestseller | 0.5721 ± 0.0091 |
-| Pawpularity | 17.2254 ± 0.0236 |
-| MkPhoto Bots | 0.0918 ± 0.0035 |
-| Anime | 0.4213 ± 0.0048 |
+![main results](assets/results.png)
 
 ## 7. Third-party code and attribution
 
