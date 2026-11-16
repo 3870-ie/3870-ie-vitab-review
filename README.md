@@ -105,7 +105,7 @@ TabFM uses activation checkpointing for attention blocks.
 
 ViTab-Adapter with CLIP and TabICLv2 was evaluated on 14 datasets using aligned splits. Scores are test mean ± sample standard deviation over seeds 42, 43, and 44.
 
-![main results](assets/results.png)
+![main results](assets/ViTab_Adapter_main_results_table_only_fixed.png)
 
 ## 7. Third-party code and attribution
 
