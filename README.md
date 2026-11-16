@@ -104,6 +104,8 @@ TabFM uses activation checkpointing for attention blocks.
 ## 6. Results
 
 ViTab-Adapter with CLIP and TabICLv2 was evaluated on 14 datasets using aligned splits. Scores are test mean ± sample standard deviation over seeds 42, 43, and 44.
+This table compares ViTab-Adapter with several representative baselines on vision-tabular benchmarks.
+Classification results are reported in accuracy, and regression results in RMSE. Only mean results are reported, and Rank denotes the average rank. CMMD, Instagram, and SMDG refer to Mammography CMMD, Justin Instagram, and Glaucoma SMDG, respectively; Amazon and MkPhoto refer to Amazon Bestseller and MkPhoto Bots.
 
 ![main results](assets/ViTab_Adapter_main_results_table_only_fixed.png)
 
